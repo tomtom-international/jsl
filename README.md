@@ -1,2 +1,1 @@
-# jsl
-TomTom Jenkins Shared Library
+# TomTom Jenkins Shared Library

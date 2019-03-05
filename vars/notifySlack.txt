@@ -1,0 +1,42 @@
+# Description
+
+A slightly simplified version of the *slackSend* command from the [Slack Plugin](https://github.com/jenkinsci/slack-plugin)
+called *notifySlack*. This function is a simple wrapper that takes care of the coloring of the
+message in Slack and prints a default message with information about the job and build.
+
+This function depends on the before mentioned Slack Plugin that needs to be installed and
+configured upfront.
+
+## Dependencies
+
+- Slack Plugin [github project](https://github.com/jenkinsci/slack-plugin)
+
+# Parameters
+
+## channel
+
+Name of the channel the message will be send to.
+
+## message
+
+Message that will be send to specified *channel*. If not specified a default message containing
+the job name, build id, url and status will be send.
+
+## skipStatus
+
+String array of build states for which a Slack notification should not be send. (Default: ["NOT_BUILT"]).
+
+# Snippet
+
+```
+@Library('<YOUR_LIBRARY_NAME>') _
+
+pipeline {
+  ...
+  post {
+    always {
+      notifySlack("#my-channel", "My custom Slack message", ["NOT_BUILT", "ABORTED"])
+    }
+  }
+}
+```

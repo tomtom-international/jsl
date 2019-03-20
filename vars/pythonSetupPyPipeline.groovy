@@ -109,6 +109,7 @@ def call(Map pipelineParams) {
         steps {
           withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
             sh "python setup.py sdist"
+            sh "twine check dist/*"
             sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
           }
         }

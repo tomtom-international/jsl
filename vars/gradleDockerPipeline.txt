@@ -1,0 +1,24 @@
+# gradleDockerPipeline
+
+## Description
+
+A simple pipeline for building and releasing Docker images based on an internal Gradle Docker Plugin (to be open sourced soon).
+
+### Dependencies
+
+## Parameters
+
+### dockerRegistryCredentials
+
+Jenkins credentials id used to authenticate with a Docker registry.
+
+### sshAgentUser
+
+SSH agent user used by the Gradle release plugin during the release (commit of version bump).
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+gradleDockerPipeline dockerRegistryCredentials: "artifactory-docker", sshAgentUser: "ssh_svc_user"
+```

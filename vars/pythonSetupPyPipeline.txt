@@ -1,0 +1,51 @@
+
+# pythonPipeline
+
+## Description
+
+A simple pipeline for Python projects based on setuptools.
+
+### Dependencies
+
+## Parameters
+
+### pypiRepo
+
+Python PyPI repository URL, eg. https://test.pypi.org/legacy/
+
+### pypiCredentials
+
+Jenkins credentials id used to publish Python modules to a PyPI repository.
+
+### sshAgentUser
+
+SSH agent user used by the git checkout and in release mode for committing the version bump.
+
+### dockerFilename
+
+The pipeline is executed in all stages in context of a Docker container. This container is based on the image defined in a Dockerfile.
+
+**Default**: `Dockerfile`
+
+### dockerBuildArgs
+
+Possibility to provide additional Docker build arguments.
+
+### dockerRunArgs
+
+Possibility to provide additional Docker run arguments.
+
+**Default**:
+
+```bash
+-v /etc/passwd:/etc/passwd:ro \
+-v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro \
+--network host
+```
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+pythonPipeline pypiRepo: "https://test.pypi.org/legacy/", pypiCredentials: "pypi-creds", sshAgentUser: "ssh_svc_user"
+```

@@ -1,4 +1,4 @@
-/* Copyright (c) 2018 - 2018 TomTom N.V. All rights reserved.
+/* Copyright (c) 2018 - 2019 TomTom N.V. All rights reserved.
  *
  * This software is the proprietary copyright of TomTom N.V. and its subsidiaries and may be
  * used for internal evaluation purposes or commercial use strictly subject to separate
@@ -14,35 +14,33 @@ def call(Map pipelineParams) {
   if (!pipelineParams.pypiCredentials) {
     error("${LOG_TAG} Please provide pipelineParams.pypiCredentials")
   }
+  if (!pipelineParams.pypiRepo) {
+    error("${LOG_TAG} Please provide pipelineParams.pypiRepo")
+  }
   if (!pipelineParams.sshAgentUser) {
     error("${LOG_TAG} Please provide pipelineParams.sshAgentUser")
   }
-  if (!pipelineParams.changesOnlyInFiles) {
-    pipelineParams["changesOnlyInFiles"] = ["CHANGELOG", "README", ".gitignore"]
-    echo("${LOG_TAG} Using default value for changesOnlyInFiles: '${pipelineParams.changesOnlyInFiles}'")
+  if (!pipelineParams.dockerFilename) {
+    pipelineParams["dockerFilename"] = "Dockerfile"
   }
-  if (!pipelineParams.commitsOnlyWithMessages) {
-    pipelineParams["commitsOnlyWithMessages"] = ["Bump version"]
-    echo("${LOG_TAG} Using default value for commitsOnlyWithMessages: '${pipelineParams.commitsOnlyWithMessages}'")
+  if (!pipelineParams.dockerBuildArgs) {
+    pipelineParams["dockerBuildArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
   }
-  if (!pipelineParams.pythonBuilderImage) {
-    error("${LOG_TAG} Please provide pipelineParams.pythonBuilderImage")
-  }
-  if (!pipelineParams.pythonBuilderArgs) {
-    pipelineParams["pythonBuilderArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host" 
+  if (!pipelineParams.dockerRunArgs) {
+    pipelineParams["dockerRunArgs"] = ""
   }
 
   pipeline {
     agent {
-      docker {
-        image pipelineParams.pythonBuilderImage
-        args pipelineParams.pythonBuilderArgs 
-        reuseNode true
+      dockerfile {
+        filename pipelineParams.dockerFilename
+        additionalBuildArgs pipelineParams.dockerBuildArgs
+        args pipelineParams.dockerRunArgs
       }
     }
 
     parameters {
-        booleanParam(defaultValue: false, description: 'Enable to force a release build', name: 'forceRelease')
+      booleanParam(defaultValue: false, description: 'Release the module', name: 'doRelease')
     }
 
     options {
@@ -55,10 +53,8 @@ def call(Map pipelineParams) {
           beforeAgent true
           allOf {
             branch "master"
-            not {
-              expression {
-                forceRelease || (commits.onlyWith(pipelineParams.commitsOnlyWithMessages as String[]) || changes.onlyIn(pipelineParams.changesOnlyInFiles as String[]))
-              }
+            expression {
+              params.doRelease
             }
           }
         }
@@ -105,18 +101,15 @@ def call(Map pipelineParams) {
           beforeAgent true
           allOf {
             branch "master"
-            not {
-              expression {
-                forceRelease || (commits.onlyWith(pipelineParams.commitsOnlyWithMessages as String[]) || changes.onlyIn(pipelineParams.changesOnlyInFiles as String[]))
-              }
+            expression {
+              params.doRelease
             }
           }
         }
         steps {
           withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
             sh "python setup.py sdist"
-
-            sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url https://artifactory.navkit-pipeline.tt3.com/artifactory/api/pypi/pypi-local dist/*"
+            sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
           }
         }
       }
@@ -127,10 +120,8 @@ def call(Map pipelineParams) {
           beforeAgent true
           allOf {
             branch "master"
-            not {
-              expression {
-                forceRelease || (commits.onlyWith(pipelineParams.commitsOnlyWithMessages as String[]) || changes.onlyIn(pipelineParams.changesOnlyInFiles as String[]))
-              }
+            expression {
+              params.doRelease
             }
           }
         }
@@ -156,10 +147,8 @@ def call(Map pipelineParams) {
           beforeAgent true
           allOf {
             branch "master"
-            not {
-              expression {
-                forceRelease || (commits.onlyWith(pipelineParams.commitsOnlyWithMessages as String[]) || changes.onlyIn(pipelineParams.changesOnlyInFiles as String[]))
-              }
+            expression {
+              params.doRelease
             }
           }
         }

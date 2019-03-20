@@ -24,10 +24,10 @@ def call(Map pipelineParams) {
     pipelineParams["dockerFilename"] = "Dockerfile"
   }
   if (!pipelineParams.dockerBuildArgs) {
-    pipelineParams["dockerBuildArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
+    pipelineParams["dockerBuildArgs"] = ""
   }
   if (!pipelineParams.dockerRunArgs) {
-    pipelineParams["dockerRunArgs"] = ""
+    pipelineParams["dockerRunArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
   }
 
   pipeline {

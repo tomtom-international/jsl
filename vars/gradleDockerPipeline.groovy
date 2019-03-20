@@ -1,4 +1,4 @@
-/* Copyright (c) 2018 - 2018 TomTom N.V. All rights reserved.
+/* Copyright (c) 2018 - 2019 TomTom N.V. All rights reserved.
  *
  * This software is the proprietary copyright of TomTom N.V. and its subsidiaries and may be
  * used for internal evaluation purposes or commercial use strictly subject to separate
@@ -17,18 +17,15 @@ def call(Map pipelineParams) {
   if (!pipelineParams.sshAgentUser) {
     error ("${LOG_TAG} Please provide pipelineParams.sshAgentUser")
   }
-  if (!pipelineParams.changesOnlyInFiles) {
-    pipelineParams["changesOnlyInFiles"] = ["CHANGELOG", "README", ".gitignore"]
-    echo("${LOG_TAG} Using default value for changesOnlyInFiles: '${pipelineParams.changesOnlyInFiles}'")
-  }
-  if (!pipelineParams.commitsOnlyWithMessages) {
-    pipelineParams["commitsOnlyWithMessages"] = ["Gradle Release Plugin"]
-    echo("${LOG_TAG} Using default value for commitsOnlyWithMessages: '${pipelineParams.commitsOnlyWithMessages}'")
-  }
 
   pipeline {
     agent {
       label "docker"
+    }
+
+    parameters {
+      booleanParam(defaultValue: false, description: 'Release the image', name: 'doRelease')
+      booleanParam(defaultValue: false, description: 'Push a snapshot version of the image', name: 'doSnapshot')
     }
 
     options {
@@ -39,11 +36,8 @@ def call(Map pipelineParams) {
       stage("Build & Test") {
         when {
           beforeAgent true
-          not {
-            anyOf {
-              branch "master"
-              branch "release/*"
-            }
+          expression {
+            !params.doRelease
           }
         }
         steps {
@@ -51,7 +45,19 @@ def call(Map pipelineParams) {
         }
       }
 
-      stage("Deploy") {
+      stage("Push snapshot") {
+        when {
+          beforeAgent true
+          expression {
+            params.doSnapshot && !params.doRelease
+          }
+        }
+        steps {
+          sh "./gradlew dockerPush"
+        }
+      }
+
+      stage("Release") {
         when {
           beforeAgent true
           allOf {
@@ -59,10 +65,8 @@ def call(Map pipelineParams) {
               branch "master"
               branch "release/*"
             }
-            not {
-              expression {
-                commits.onlyWith(pipelineParams.commitsOnlyWithMessages as String[]) || changes.onlyIn(pipelineParams.changesOnlyInFiles as String[])
-              }
+            expression {
+              params.doRelease
             }
           }
         }

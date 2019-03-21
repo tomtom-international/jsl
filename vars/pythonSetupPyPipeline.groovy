@@ -110,9 +110,7 @@ def call(Map pipelineParams) {
       stage("Package") {
         steps {
           sh "python setup.py sdist"
-
-          // We hide for now any failure during the package validation
-          sh "twine check dist/* || true"
+          sh "twine check dist/*"
         }
       }
 

@@ -78,11 +78,22 @@ def call(Map pipelineParams) {
             sh "python setup.py lint --lint-output-format parseable"
           }
         }
+        post {
+          always {
+            recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
+          }
+        }
       }
 
       stage("Execute Tests") {
         steps {
           sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
+        }
+        post {
+          always {
+            junit 'build/test_results.xml'
+            cobertura coberturaReportFile: 'build/coverage.xml'
+          }
         }
       }
 
@@ -167,13 +178,6 @@ def call(Map pipelineParams) {
             sh "git push origin master --tags"
           }
         }
-      }
-    }
-    post {
-      always {
-        recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
-        junit 'build/test_results.xml'
-        cobertura coberturaReportFile: 'build/coverage.xml'
       }
     }
   }

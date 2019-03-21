@@ -28,6 +28,10 @@ def call(Map pipelineParams) {
       booleanParam(defaultValue: false, description: 'Push a snapshot version of the image', name: 'doSnapshot')
     }
 
+    environment {
+        DOCKER_REGISTRY = credentials("${pipelineParams.dockerRegistryCredentials}")
+    }
+
     options {
       disableConcurrentBuilds()
     }
@@ -53,7 +57,7 @@ def call(Map pipelineParams) {
           }
         }
         steps {
-          sh "./gradlew dockerPush"
+          sh "./gradlew dockerPush -Pdocker.registry.user=$DOCKER_REGISTRY_USR -Pdocker.registry.password=$DOCKER_REGISTRY_PSW"
         }
       }
 
@@ -71,10 +75,8 @@ def call(Map pipelineParams) {
           }
         }
         steps {
-          withCredentials([usernamePassword(credentialsId: pipelineParams.dockerRegistryCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
-            sshagent([pipelineParams.sshAgentUser]) {
-              sh "./gradlew release -Prelease.useAutomaticVersion=true -Pdocker.registry.user=$USERNAME -Pdocker.registry.password=$PASSWORD"
-            }
+          sshagent([pipelineParams.sshAgentUser]) {
+            sh "./gradlew release -Prelease.useAutomaticVersion=true -Pdocker.registry.user=$DOCKER_REGISTRY_USR -Pdocker.registry.password=$DOCKER_REGISTRY_PSW"
           }
         }
       }

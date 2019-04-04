@@ -131,34 +131,6 @@ def call(Map pipelineParams) {
         }
       }
 
-      // Deploy the html documents to the docs branch, which when using "BitBucket Pages" allows serving the documentation directly
-      stage("Deploy Docs") {
-        when {
-          beforeAgent true
-          allOf {
-            branch "master"
-            expression {
-              params.doRelease
-            }
-          }
-        }
-        steps {
-          sshagent([pipelineParams.sshAgentUser]) {
-            script {
-              String version = sh(script: "python setup.py --version", returnStdout: true).trim()
-              sh "git checkout docs"
-              sh "rm -rf docs"
-              sh "mv build/sphinx/html/ docs/"
-              sh "git add docs/."
-              sh "git commit -m \"Documentation update to $version\""
-              sh "git tag docs-$version"
-              sh "git push origin docs"
-              sh "git push origin docs --tags"
-            }
-          }
-        }
-      }
-
       stage("Bump Version Patch") {
         when {
           beforeAgent true

@@ -13,10 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-def call(Map conf, Closure body) {
+def call(Map args, Closure body) {
     // Modified from https://support.cloudbees.com/hc/en-us/articles/226554067/comments/360000870712
+    boolean activity = false
+    String unit = "MINUTES"
+
+    if (args.containsKey('activity')) {
+        activity = args.activity
+    }
+
+    if (args.containsKey('unit')) {
+        unit = args.unit
+    }
+
     try {
-        timeout(conf) {
+        timeout(time: args.time, activity: activity, unit: unit) {
             body()
         }
     } catch(org.jenkinsci.plugins.workflow.steps.FlowInterruptedException err) {
@@ -28,4 +39,20 @@ def call(Map conf, Closure body) {
             throw err
         }
     }
+}
+
+// Handle calling failingTimeout with time specified *without* a label for time (e.g. failingTimeout 1 unit: "MINUTES")
+def call(Map args, int time, Closure body) {
+    args.put("time", time)
+    call(args, body)
+}
+
+// Allow calling failingTimeout normally as a function
+def call(int time, Closure body, boolean activity = false, String unit = "MINUTES") {
+    Map args = [
+        "time": time,
+        "activity": activity,
+        "unit": unit
+    ]
+    call(args, body)
 }

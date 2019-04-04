@@ -1,0 +1,29 @@
+# failingTimeout
+
+## Description
+
+Wraps a timeout call and throws an error rather than an abort if the timeout is exceeded.
+See https://jenkins.io/doc/pipeline/steps/workflow-basic-steps/#timeout-enforce-time-limit for details of timeout step.
+
+### Dependencies
+
+## Parameters
+
+### time
+
+int - duration to wait for completion
+
+### activity (optional)
+
+boolean - Timeout after no activity in logs for this block instead of absolute duration. 
+
+### unit (optional)
+
+Values: NANOSECONDS, MICROSECONDS, MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+failingTimeout time: "10", activity: true, unit: "SECONDS"
+```

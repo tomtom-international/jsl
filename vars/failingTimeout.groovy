@@ -12,18 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
-
- /*
- * failingTimeout()
- * Description: Wraps a timeout call and throws an error rather than an abort if the timeout is exceeded.
- * Modified from https://support.cloudbees.com/hc/en-us/articles/226554067/comments/360000870712
- * args:
- *  conf: Map is passed directly to the timeout step, see https://jenkins.io/doc/pipeline/steps/workflow-basic-steps/#timeout-enforce-time-limit
- *  body: Closure that is wrapped by timeout
  */
-
 def call(Map conf, Closure body) {
+    // Modified from https://support.cloudbees.com/hc/en-us/articles/226554067/comments/360000870712
     try {
         timeout(conf) {
             body()

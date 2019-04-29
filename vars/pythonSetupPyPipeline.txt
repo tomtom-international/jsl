@@ -2,7 +2,9 @@
 
 ## Description
 
-A simple pipeline for Python projects based on setuptools.
+Pipeline for building, validating and deploying Python modules.
+
+To create a Python project skeleton use this [Python cookiecutter template](https://github.com/tomtom-international/cookiecutter-python).
 
 ### Dependencies
 
@@ -10,25 +12,32 @@ A simple pipeline for Python projects based on setuptools.
 
 ### pypiRepo
 
-Python PyPI repository URL, eg. https://test.pypi.org/legacy/
+Python PyPI repository URL, eg. `https://test.pypi.org/legacy/`
 
 ### pypiCredentials
 
-Jenkins credentials id used to publish Python modules to a PyPI repository.
+Jenkins credentials id used to publish the Python module to the PyPI repository.
 
 ### sshAgentUser
 
-SSH agent user used by the git checkout and in release mode for committing the version bump.
+SSH agent user used for committing the version bump in release mode (`doRelease` parameter).
 
 ### dockerFilename
 
-The pipeline is executed in all stages in context of a Docker container. This container is based on the image defined in a Dockerfile.
+The build and validation stages are executed in context of a Docker container. This container is based on the image defined by this file.
 
 **Default**: `Dockerfile`
 
 ### dockerBuildArgs
 
 Possibility to provide additional Docker build arguments.
+
+**Default**:
+
+```bash
+--no-cache \
+--network host
+```
 
 ### dockerRunArgs
 
@@ -42,9 +51,68 @@ Possibility to provide additional Docker run arguments.
 --network host
 ```
 
+### dockerDeploy
+
+Set to true if a Docker image with the Python module should be built and pushed to a Docker registry.
+
+### dockerRegistryUrl
+
+The Docker registry URL where the Docker image should be deployed to (eg. `https://registry.example.com`).
+
+### dockerRegistryCredentialsId
+
+Jenkins credentials id used to publish the Docker image to the Docker registry.
+
+### dockerRepo
+
+Name of the repository the Docker image will be deployed to.
+
+**Example**:
+
+For a Python module `foo` and `tomtom` as `dockerRepo` the image will be called `tomtom/foo`.
+
+The tag of the image is based on the version of the Python module version.
+
+### dockerDeployFile
+
+Dockerfile containing directives to build the image with the Python module.
+
+**Example**:
+
+```dockerfile
+FROM python:3.6.7-alpine3.7 as base
+
+FROM base as builder
+RUN pip install --upgrade pip==19.0.3 setuptools==41.0.0 virtualenv==16.4.3
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY dist /dist
+RUN pip install --extra-index-url https://artifactory.acme.org/artifactory/api/pypi/pypi-virtual/simple /dist/*
+
+FROM base
+COPY --from=builder /opt/venv /opt/venv
+
+LABEL io.whalebrew.name "ebr-connector-qb"
+LABEL io.whalebrew.config.working_dir "$PWD"
+
+ENV PATH="/opt/venv/bin:$PATH"
+CMD ["ebr-store-qb-results"]
+```
+
 ## Snippet
 
 ```groovy
-@Library(['github.com/tomtom-international/jsl']) _
-pythonPipeline pypiRepo: "https://test.pypi.org/legacy/", pypiCredentials: "pypi-creds", sshAgentUser: "ssh_svc_user"
+@Library(value="github.com/tomtom-international/jsl@master", changelog=false) _
+
+pythonSetupPyPipeline \
+  dockerFilename: "Dockerfile.build", \
+  dockerDeploy: true, \
+  dockerRegistryCredentialsId: "docker-credential", \
+  dockerRegistry: "https://docker.acme.org", \
+  dockerRepo: "acme", \
+  dockerDeployFile: "Dockerfile.deploy", \
+  pypiRepo: "https://test.pypi.org/legacy/", \
+  pypiCredentials: "pypi-credential", \
+  sshAgentUser: "ssh_svc_ci"
 ```

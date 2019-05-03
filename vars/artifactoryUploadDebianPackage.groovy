@@ -6,7 +6,7 @@
 * ubuntuVersion - String Version of Ubuntu package is for (i.e. trusty or xenial)
 * path - String path to directory containing deb packages
 * credentialsId - String credentials identifier
-* artifactoryUrl - String URL of Artifactory (eg. artifactory.your-org.com
+* artifactoryUrl - String URL of Artifactory (eg. artifactory.your-org.com)
 * artifactoryRepo - String Artifactory Debian repository
 * arch - String architecture string
 */

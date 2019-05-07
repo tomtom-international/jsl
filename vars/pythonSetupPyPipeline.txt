@@ -16,17 +16,21 @@ Python PyPI repository URL, eg. `https://test.pypi.org/legacy/`
 
 ### pypiCredentials
 
-Jenkins credentials id used to publish the Python module to the PyPI repository.
+Jenkins credentials id used to publish the Python module the specified PyPI repository.
 
 ### sshAgentUser
 
 SSH agent user used for committing the version bump in release mode (`doRelease` parameter).
 
-### dockerFilename
+### dockerFilename (DEPRECATED)
+
+**DEPRECATED**: Use `dockerBuildFile` instead.
+
+### dockerBuildFile
 
 The build and validation stages are executed in context of a Docker container. This container is based on the image defined by this file.
 
-**Default**: `Dockerfile`
+**Default**: `Dockerfile.build`
 
 ### dockerBuildArgs
 
@@ -75,7 +79,13 @@ The tag of the image is based on the version of the Python module version.
 
 ### dockerDeployFile
 
-Dockerfile containing directives to build the image with the Python module.
+Dockerfile containing directives to build the image with the Python module that will be deployed to the specified Docker registry.
+
+> **Requirement**:
+> Before the *Deploy Docker* stage uses this Dockerfile, the pipeline generates a distribution package (`python setup.py sdist`) within the *dist/*
+> directory. This directory, incl. its content, has to be copied to the builder image which then will be installed by *pip* into a virtualenv within
+> the builder image.
+> As a last step the whole virtualenv directory will be copied to the final Docker image that gets later on deployed to the specified Docker registry.
 
 **Example**:
 
@@ -83,21 +93,17 @@ Dockerfile containing directives to build the image with the Python module.
 FROM python:3.6.7-alpine3.7 as base
 
 FROM base as builder
-RUN pip install --upgrade pip==19.0.3 setuptools==41.0.0 virtualenv==16.4.3
-RUN python -m venv /opt/venv
+RUN pip install --upgrade virtualenv==16.4.3 && python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY dist /dist
-RUN pip install --extra-index-url https://artifactory.acme.org/artifactory/api/pypi/pypi-virtual/simple /dist/*
+RUN pip install /dist/*
 
 FROM base
 COPY --from=builder /opt/venv /opt/venv
 
-LABEL io.whalebrew.name "ebr-connector-qb"
-LABEL io.whalebrew.config.working_dir "$PWD"
-
 ENV PATH="/opt/venv/bin:$PATH"
-CMD ["ebr-store-qb-results"]
+CMD ["<your-console-scripts"]
 ```
 
 ## Snippet

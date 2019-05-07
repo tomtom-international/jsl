@@ -29,7 +29,7 @@ def call(Map pipelineParams) {
       stage("Bump version Release") {
        agent {
           dockerfile {
-            filename pipelineParams.dockerFilename
+            filename pipelineParams.dockerBuildFile
             additionalBuildArgs pipelineParams.dockerBuildArgs
             args pipelineParams.dockerRunArgs
             reuseNode true
@@ -50,7 +50,7 @@ def call(Map pipelineParams) {
       stage("Build") {
         agent {
           dockerfile {
-            filename pipelineParams.dockerFilename
+            filename pipelineParams.dockerBuildFile
             additionalBuildArgs pipelineParams.dockerBuildArgs
             args pipelineParams.dockerRunArgs
             reuseNode true
@@ -89,7 +89,7 @@ def call(Map pipelineParams) {
       stage("Validation") {
         agent {
           dockerfile {
-            filename pipelineParams.dockerFilename
+            filename pipelineParams.dockerBuildFile
             additionalBuildArgs pipelineParams.dockerBuildArgs
             args pipelineParams.dockerRunArgs
             reuseNode true
@@ -133,7 +133,7 @@ def call(Map pipelineParams) {
       stage("Package") {
         agent {
           dockerfile {
-            filename pipelineParams.dockerFilename
+            filename pipelineParams.dockerBuildFile
             additionalBuildArgs pipelineParams.dockerBuildArgs
             args pipelineParams.dockerRunArgs
             reuseNode true
@@ -152,7 +152,7 @@ def call(Map pipelineParams) {
           stage("Deploy PyPI") {
             agent {
               dockerfile {
-                filename pipelineParams.dockerFilename
+                filename pipelineParams.dockerBuildFile
                 additionalBuildArgs pipelineParams.dockerBuildArgs
                 args pipelineParams.dockerRunArgs
                 reuseNode true
@@ -226,7 +226,7 @@ def call(Map pipelineParams) {
       stage("Bump version Patch") {
         agent {
           dockerfile {
-            filename pipelineParams.dockerFilename
+            filename pipelineParams.dockerBuildFile
             additionalBuildArgs pipelineParams.dockerBuildArgs
             args pipelineParams.dockerRunArgs
             reuseNode true
@@ -285,13 +285,14 @@ def validateParameter(Map pipelineParams) {
 }
 
 def initParameterWithBaseValues(Map pipelineParams) {
-  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
+  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile.build"
+  pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename
+  pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
   pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
   pipelineParams["dockerBuildArgs"] += " --no-cache --network host"
   pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""
   pipelineParams["dockerRunArgs"] += " -v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
   pipelineParams["pypiRepo"] = pipelineParams.pypiRepo ?: "https://test.pypi.org/legacy/"
-  pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
 }
 
 def log(message) {

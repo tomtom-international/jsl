@@ -62,13 +62,6 @@ def call(Map pipelineParams) {
               stage("Build module") {
                 steps {
                   sh "python setup.py build"
-
-                  script {
-                    // Gather the module name and version so that it can be used in a later stage
-                    moduleName = sh(script: "python setup.py --name", returnStdout: true).trim()
-                    moduleVersion = sh(script: "python setup.py --version", returnStdout: true).trim()
-                    echo("Module name: ${moduleName} version: ${moduleVersion}")
-                  }
                 }
               } // Build module
 
@@ -144,6 +137,12 @@ def call(Map pipelineParams) {
           sh "twine check dist/*"
           stash includes: "dist/*.tar.gz", name: "pypi"
           stash includes: "Dockerfile.deploy", name: "docker"
+
+          script {
+            // Gather the module name and version so that it can be used in the Docker deploy stage
+            moduleName = sh(script: "python setup.py --name", returnStdout: true).trim()
+            moduleVersion = sh(script: "python setup.py --version", returnStdout: true).trim()
+          }
         }
       } // Package
 

@@ -32,7 +32,7 @@ The build and validation stages are executed in context of a Docker container. T
 
 Possibility to provide additional Docker build arguments.
 
-**Default**:
+Base arguments are:
 
 ```bash
 --no-cache \
@@ -43,7 +43,7 @@ Possibility to provide additional Docker build arguments.
 
 Possibility to provide additional Docker run arguments.
 
-**Default**:
+Base arguments are:
 
 ```bash
 -v /etc/passwd:/etc/passwd:ro \

@@ -9,44 +9,10 @@
  */
 
 def call(Map pipelineParams) {
-  def LOG_TAG = "[pythonSetupPyPipeline]"
 
-  if (!pipelineParams.pypiCredentials) {
-    error("${LOG_TAG} Please provide pipelineParams.pypiCredentials")
-  }
-  if (!pipelineParams.pypiRepo) {
-    error("${LOG_TAG} Please provide pipelineParams.pypiRepo")
-  }
-  if (!pipelineParams.sshAgentUser) {
-    error("${LOG_TAG} Please provide pipelineParams.sshAgentUser")
-  }
-  if (!pipelineParams.dockerFilename) {
-    pipelineParams["dockerFilename"] = "Dockerfile"
-  }
-  if (!pipelineParams.dockerBuildArgs) {
-    pipelineParams["dockerBuildArgs"] = "--no-cache --network host"
-  }
-  if (!pipelineParams.dockerRunArgs) {
-    pipelineParams["dockerRunArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
-  }
-
-  if (pipelineParams.dockerDeploy) {
-    if (!pipelineParams.dockerRegistryUrl) {
-      error("${LOG_TAG} Please provide a Docker registry URL (eg. https://registry.example.com)")
-    }
-    if (!pipelineParams.dockerRegistryCredentialsId) {
-      error("${LOG_TAG} Please provide a Jenkins credentials id for deploying to ${pipelineParams.dockerRegistryUrl}")
-    }
-    if (!pipelineParams.dockerRepo) {
-      error("${LOG_TAG} Please provide a Docker repository name (eg. acme). The image name will be based on the Python module name (eg. acme/mymodule)")
-    }
-    if (!pipelineParams.dockerDeployFile) {
-      echo("${LOG_TAG} Using default Dockerfile ('Dockerfile.deploy') for deployment")
-      pipelineParams["dockerDeployFile"] = "Dockerfile.deploy"
-    }
-  }
-
-  echo("${LOG_TAG} Pipeline params: ${pipelineParams}")
+  validateParameter(pipelineParams)
+  initParameterWithBaseValues(pipelineParams)
+  log("Pipeline params: ${pipelineParams}")
 
   pipeline {
     agent none
@@ -136,7 +102,7 @@ def call(Map pipelineParams) {
                 steps {
                   // Necessary to avoid issues with creating pylint files that track the delta of warnings.
                   withEnv(["HOME=$WORKSPACE"]) {
-                    // setuptools-lint does not make a good job in installing all its dependencies.
+                    // setuptools-lint does not do a good job in installing all its dependencies.
                     sh "python setup.py install --user"
                     sh "python setup.py lint --lint-output-format parseable"
                   }
@@ -243,8 +209,12 @@ def call(Map pipelineParams) {
                   if (isSnapshot(moduleVersion) || !imageExists) {
                     // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we have to
                     // build and push the image directly via docker commands.
-                    sh "docker build -t ${image.imageName()} -f ${pipelineParams.dockerDeployFile} ${pipelineParams.dockerBuildArgs} ."
-                    sh "docker push ${image.imageName()}"
+                    try {
+                      sh "docker build -t ${image.imageName()} -f ${pipelineParams.dockerDeployFile} ${pipelineParams.dockerBuildArgs} ."
+                      sh "docker push ${image.imageName()}"
+                    } finally {
+                      sh "docker rmi ${image.imageName()}"
+                    }
                   }
                 }
               }
@@ -272,17 +242,65 @@ def call(Map pipelineParams) {
         steps {
           sshagent([pipelineParams.sshAgentUser]) {
             sh "git checkout master"
-
             sh "bumpversion --no-tag patch"
-
             sh "git push origin master --tags"
           }
         }
       } // Bump version Patch
 
     } // stages
+
+    post {
+      cleanup {
+        node("docker") {
+          // cleanup workspace
+          deleteDir()
+          sh "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock spotify/docker-gc"
+        }
+      }
+    }
   } // pipeline
 } // call
+
+
+def validateParameter(Map pipelineParams) {
+  if (!pipelineParams.pypiCredentials) {
+    throwError("Please provide pipelineParams.pypiCredentials")
+  }
+  if (!pipelineParams.sshAgentUser) {
+    throwError("Please provide pipelineParams.sshAgentUser")
+  }
+
+  if (pipelineParams.dockerDeploy) {
+    if (!pipelineParams.dockerRegistryUrl) {
+      throwError("Please provide a Docker registry URL (eg. https://registry.example.com)")
+    }
+    if (!pipelineParams.dockerRegistryCredentialsId) {
+      throwError("Please provide a Jenkins credentials id for deploying to ${pipelineParams.dockerRegistryUrl}")
+    }
+    if (!pipelineParams.dockerRepo) {
+      throwError("Please provide a Docker repository name (eg. acme). The image name will be based on the Python module name (eg. acme/mymodule)")
+    }
+  }
+}
+
+def initParameterWithBaseValues(Map pipelineParams) {
+  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
+  pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
+  pipelineParams["dockerBuildArgs"] += " --no-cache --network host"
+  pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""
+  pipelineParams["dockerRunArgs"] += " -v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
+  pipelineParams["pypiRepo"] = pipelineParams.pypiRepo ?: "https://test.pypi.org/legacy/"
+  pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
+}
+
+def log(message) {
+  echo("[pythonSetupPyPipeline] ${message}")
+}
+
+def throwError(message) {
+  error("[pythonSetupPyPipeline] ${message}")
+}
 
 def isSnapshot(version) {
   return (version.contains("-") || version.contains("dev"))

@@ -266,27 +266,28 @@ def call(Map pipelineParams) {
 
 
 def validateParameter(Map pipelineParams) {
-  if (!pipelineParams.pypiCredentials) {
-    throwError("Please provide pipelineParams.pypiCredentials")
+  if (!pipelineParams.pypiCredentials || pipelineParams.pypiCredentialsId) {
+    throwError("Please provide a Jenkins credentials id for the specified PyPI repository [pypiCredentials]")
   }
   if (!pipelineParams.sshAgentUser) {
-    throwError("Please provide pipelineParams.sshAgentUser")
+    throwError("Please provide a SSH agent user [sshAgentUser]")
   }
 
   if (pipelineParams.dockerDeploy) {
     if (!pipelineParams.dockerRegistryUrl) {
-      throwError("Please provide a Docker registry URL (eg. https://registry.example.com)")
+      throwError("Please provide a Docker registry URL (eg. https://registry.example.com) [dockerRegistryUrl]")
     }
     if (!pipelineParams.dockerRegistryCredentialsId) {
-      throwError("Please provide a Jenkins credentials id for deploying to ${pipelineParams.dockerRegistryUrl}")
+      throwError("Please provide a Jenkins credentials id for deploying to ${pipelineParams.dockerRegistryUrl} [dockerRegistryCredentialsId]")
     }
     if (!pipelineParams.dockerRepo) {
-      throwError("Please provide a Docker repository name (eg. acme). The image name will be based on the Python module name (eg. acme/mymodule)")
+      throwError("Please provide a Docker repository name (eg. acme). The image name will be based on the Python module name (eg. acme/mymodule) [dockerRepo]")
     }
   }
 }
 
 def initParameterWithBaseValues(Map pipelineParams) {
+  // TODO: once all pipelines are updated to use dockerBuildFile, remove all references to dockerFilename.
   pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile.build"
   pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename
   pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"

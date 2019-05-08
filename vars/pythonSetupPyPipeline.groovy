@@ -45,7 +45,7 @@ def call(Map pipelineParams) {
       stage("Bump version Release") {
        agent {
           docker {
-            image "python-setup-py-build"
+            image buildImage.imageName()
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -67,7 +67,7 @@ def call(Map pipelineParams) {
           stage("Build module") {
             agent {
               docker {
-                image "python-setup-py-build"
+                image buildImage.imageName()
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -80,7 +80,7 @@ def call(Map pipelineParams) {
           stage("Build docs") {
             agent {
               docker {
-                image "python-setup-py-build"
+                image buildImage.imageName()
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -105,7 +105,7 @@ def call(Map pipelineParams) {
           stage("Run Linter") {
             agent {
               docker {
-                image "python-setup-py-build"
+                image buildImage.imageName()
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -129,7 +129,7 @@ def call(Map pipelineParams) {
           stage("Run Tests") {
             agent {
               docker {
-                image "python-setup-py-build"
+                image buildImage.imageName()
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -150,7 +150,7 @@ def call(Map pipelineParams) {
       stage("Package") {
         agent {
           docker {
-            image "python-setup-py-build"
+            image buildImage.imageName()
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -172,7 +172,7 @@ def call(Map pipelineParams) {
           stage("Deploy PyPI") {
             agent {
               docker {
-                image "python-setup-py-build"
+                image buildImage.imageName()
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -229,7 +229,7 @@ def call(Map pipelineParams) {
       stage("Bump version Patch") {
         agent {
           docker {
-            image "python-setup-py-build"
+            image buildImage.imageName()
             args pipelineParams.dockerRunArgs
             reuseNode true
           }

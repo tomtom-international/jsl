@@ -23,6 +23,7 @@ def call(Map pipelineParams) {
 
     parameters {
       booleanParam(defaultValue: false, description: "Release the module", name: "doRelease")
+      booleanParam(defaultValue: false, description: "Deploy snapshot Docker image", name: "doDockerSnapshot")
     }
 
     options {
@@ -194,7 +195,11 @@ def call(Map pipelineParams) {
           stage("Deploy Docker") {
             when {
               beforeAgent true
-              expression { pipelineParams.dockerDeploy }
+              expression {
+                // On master builds deploy always if dockerDeploy == true.
+                // On branch/PR builds deploy only on-demand.
+                (BRANCH_NAME ==~ /(master)/ && pipelineParams.dockerDeploy) || params.doDockerSnapshot
+              }
             }
             steps {
               script {

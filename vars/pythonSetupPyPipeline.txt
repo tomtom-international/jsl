@@ -14,7 +14,11 @@ To create a Python project skeleton use this [Python cookiecutter template](http
 
 Python PyPI repository URL, eg. `https://test.pypi.org/legacy/`
 
-### pypiCredentials
+### pypiCredentials (DEPRECATED)
+
+**DEPRECATED**: Use `pypiCredentialsId` instead.
+
+### pypiCredentialsId
 
 Jenkins credentials id used to publish the Python module the specified PyPI repository.
 

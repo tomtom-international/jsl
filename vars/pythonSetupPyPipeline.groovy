@@ -185,7 +185,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
+              withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentialsId, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
                 sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
               }
             }
@@ -287,6 +287,8 @@ def validateParameter(Map pipelineParams) {
 }
 
 def initParameterWithBaseValues(Map pipelineParams) {
+  // TODO: once all pipelines are updated to use pypiCredentialsId, remove this line:
+  pipelineParams["pypiCredentialsId"] = pipelineParams.pypiCredentialsId ?: pipelineParams.pypiCredentials
   // TODO: once all pipelines are updated to use dockerBuildFile, remove all references to dockerFilename.
   pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile.build"
   pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename

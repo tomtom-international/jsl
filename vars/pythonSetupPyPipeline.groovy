@@ -266,7 +266,7 @@ def call(Map pipelineParams) {
 
 
 def validateParameter(Map pipelineParams) {
-  if (!pipelineParams.pypiCredentials || pipelineParams.pypiCredentialsId) {
+  if (!pipelineParams.pypiCredentials && !pipelineParams.pypiCredentialsId) {
     throwError("Please provide a Jenkins credentials id for the specified PyPI repository [pypiCredentials]")
   }
   if (!pipelineParams.sshAgentUser) {

@@ -15,7 +15,11 @@ def call(Map pipelineParams) {
   log("Pipeline params: ${pipelineParams}")
 
   pipeline {
-    agent none
+    agent {
+      node {
+        label "docker"
+      }
+    }
 
     parameters {
       booleanParam(defaultValue: false, description: "Release the module", name: "doRelease")
@@ -23,14 +27,25 @@ def call(Map pipelineParams) {
 
     options {
       disableConcurrentBuilds()
+      buildDiscarder(logRotator(numToKeepStr: '5'))
     }
 
     stages {
+
+      // We create the build image only once and use it in later stages (reduces job time by ~50%).
+      stage("Create build image") {
+        steps {
+          script {
+            buildImage = docker.build("python-setup-py-build", "-f ${pipelineParams.dockerBuildFile} ${pipelineParams.dockerBuildArgs} .")
+          }
+        }
+      } // Create build image
+
+      // Create a release version (removing the .dev0 from `version`) if we are on master and the doRelease checkbox is ticked.
       stage("Bump version Release") {
        agent {
-          dockerfile {
-            filename pipelineParams.dockerBuildFile
-            additionalBuildArgs pipelineParams.dockerBuildArgs
+          docker {
+            image "python-setup-py-build"
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -48,86 +63,94 @@ def call(Map pipelineParams) {
       } // Bump version Release
 
       stage("Build") {
-        agent {
-          dockerfile {
-            filename pipelineParams.dockerBuildFile
-            additionalBuildArgs pipelineParams.dockerBuildArgs
-            args pipelineParams.dockerRunArgs
-            reuseNode true
-          }
-        }
-        stages {
-          stage("Build") {
-            parallel {
-              stage("Build module") {
-                steps {
-                  sh "python setup.py build"
-                }
-              } // Build module
-
-              stage("Build docs") {
-                steps {
-                  // Necessary to be able to locally install packages, which is required for build_sphinx
-                  withEnv(["HOME=$WORKSPACE"]) {
-                    sh "python setup.py install --user"
-                    sh "python setup.py build_sphinx"
-                  }
-                }
-              } // Build docs
+        parallel {
+          stage("Build module") {
+            agent {
+              docker {
+                image "python-setup-py-build"
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
             }
-          } // Build
+            steps {
+              sh "python setup.py build"
+            }
+          } // Build module
+
+          stage("Build docs") {
+            agent {
+              docker {
+                image "python-setup-py-build"
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              // Necessary to be able to locally install packages, which is required for build_sphinx
+              withEnv(["HOME=$WORKSPACE"]) {
+                // * Use `develop` over `install` to avoid creating an egg file in dist/ otherwise
+                //   the Docker deploy build will fail when pip will try to install the egg package.
+                // * We need to call `develop` because otherwise no dependencies of the module itself
+                //   will be installed and the doc generation will fail due to not found imports.
+                sh "python setup.py develop --user"
+                sh "python setup.py build_sphinx"
+              }
+            }
+          } // Build docs
         }
       } // Build
 
-      stage("Validation") {
-        agent {
-          dockerfile {
-            filename pipelineParams.dockerBuildFile
-            additionalBuildArgs pipelineParams.dockerBuildArgs
-            args pipelineParams.dockerRunArgs
-            reuseNode true
-          }
-        }
-        stages {
-          stage("Validate") {
-            parallel {
-              stage("Run Linter") {
-                steps {
-                  // Necessary to avoid issues with creating pylint files that track the delta of warnings.
-                  withEnv(["HOME=$WORKSPACE"]) {
-                    // setuptools-lint does not do a good job in installing all its dependencies.
-                    sh "python setup.py install --user"
-                    sh "python setup.py lint --lint-output-format parseable"
-                  }
-                }
-                post {
-                  always {
-                    recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
-                  }
-                }
-              } // Run Linter
-
-              stage("Run Tests") {
-                steps {
-                  sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
-                }
-                post {
-                  always {
-                    junit "build/test_results.xml"
-                    cobertura coberturaReportFile: "build/coverage.xml"
-                  }
-                }
-              } // Run Tests
+      stage("Validate") {
+        parallel {
+          stage("Run Linter") {
+            agent {
+              docker {
+                image "python-setup-py-build"
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
             }
-          } // Validate
+            steps {
+              // Necessary to avoid issues with creating pylint files that track the delta of warnings.
+              withEnv(["HOME=$WORKSPACE"]) {
+                // setuptools-lint does not do a good job in installing all its dependencies.
+                // use `develop` over `install` to avoid creating an egg file in dist/
+                sh "python setup.py develop --user"
+                sh "python setup.py lint --lint-output-format parseable"
+              }
+            }
+            post {
+              always {
+                recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
+              }
+            }
+          } // Run Linter
+
+          stage("Run Tests") {
+            agent {
+              docker {
+                image "python-setup-py-build"
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
+            }
+            post {
+              always {
+                junit "build/test_results.xml"
+                cobertura coberturaReportFile: "build/coverage.xml"
+              }
+            }
+          } // Run Tests
         }
-      } // Validation
+      } // Validate
 
       stage("Package") {
         agent {
-          dockerfile {
-            filename pipelineParams.dockerBuildFile
-            additionalBuildArgs pipelineParams.dockerBuildArgs
+          docker {
+            image "python-setup-py-build"
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -135,8 +158,6 @@ def call(Map pipelineParams) {
         steps {
           sh "python setup.py sdist"
           sh "twine check dist/*"
-          stash includes: "dist/*.tar.gz", name: "pypi"
-          stash includes: "Dockerfile.deploy", name: "docker"
 
           script {
             // Gather the module name and version so that it can be used in the Docker deploy stage
@@ -150,16 +171,11 @@ def call(Map pipelineParams) {
         parallel {
           stage("Deploy PyPI") {
             agent {
-              dockerfile {
-                filename pipelineParams.dockerBuildFile
-                additionalBuildArgs pipelineParams.dockerBuildArgs
+              docker {
+                image "python-setup-py-build"
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
-            }
-            options {
-              // No need to checkout sources again since we use stashed artifacts for deployment
-              skipDefaultCheckout()
             }
             when {
               beforeAgent true
@@ -169,7 +185,6 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              unstash "pypi"
               withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
                 sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
               }
@@ -177,22 +192,11 @@ def call(Map pipelineParams) {
           } // Deploy PyPI
 
           stage("Deploy Docker") {
-            agent {
-              node {
-                label "docker"
-              }
-            }
-            options {
-              // No need to checkout sources again since we use stashed artifacts for deployment
-              skipDefaultCheckout()
-            }
             when {
               beforeAgent true
               expression { pipelineParams.dockerDeploy }
             }
             steps {
-              unstash "docker"
-              unstash "pypi"
               script {
                 docker.withRegistry(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId) {
                   def image = docker.image("${pipelineParams.dockerRepo}/${moduleName}:${moduleVersion}")
@@ -224,9 +228,8 @@ def call(Map pipelineParams) {
 
       stage("Bump version Patch") {
         agent {
-          dockerfile {
-            filename pipelineParams.dockerBuildFile
-            additionalBuildArgs pipelineParams.dockerBuildArgs
+          docker {
+            image "python-setup-py-build"
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -251,11 +254,11 @@ def call(Map pipelineParams) {
 
     post {
       cleanup {
-        node("docker") {
-          // cleanup workspace
-          deleteDir()
-          sh "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock spotify/docker-gc"
-        }
+        // Leave the campground cleaner than you found it.
+        deleteDir()
+        // The declarative pipeline produces many images (with hash names) and does not clean them up (and won't
+        // do it: https://issues.jenkins-ci.org/browse/JENKINS-40723).
+        sh "docker system prune --volumes --force"
       }
     }
   } // pipeline

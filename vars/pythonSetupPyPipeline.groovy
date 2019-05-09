@@ -295,12 +295,8 @@ def validateParameter(Map pipelineParams) {
 }
 
 def initParameterWithBaseValues(Map pipelineParams) {
-  // TODO: once all pipelines are updated to use pypiCredentialsId, remove this line:
   pipelineParams["pypiCredentialsId"] = pipelineParams.pypiCredentialsId ?: pipelineParams.pypiCredentials
-  // TODO: once all pipelines are updated to use dockerBuildFile, remove all references to dockerFilename.
   pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
-  // pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename
-  // pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
   pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
   pipelineParams["dockerBuildArgs"] += " --network host"
   pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""

@@ -245,7 +245,8 @@ def call(Map pipelineParams) {
         deleteDir()
         // The declarative pipeline produces many images (with hash names) and does not clean them up (and won't
         // do it: https://issues.jenkins-ci.org/browse/JENKINS-40723).
-        sh "docker system prune --volumes --force"
+        // We try to do our best and delete only dangling images.
+        sh "docker image prune -f"
       }
     }
   } // pipeline

@@ -26,15 +26,50 @@ Jenkins credentials id used to publish the Python module the specified PyPI repo
 
 SSH agent user used for committing the version bump in release mode (`doRelease` parameter).
 
-### dockerFilename (DEPRECATED)
+### dockerFilename
 
-**DEPRECATED**: Use `dockerBuildFile` instead.
+A [multi-stage Dockerfile](https://docs.docker.com/develop/develop-images/multistage-build/) for producing intermediate build/test and deployment images and
+the production image to be pushed to the specified Docker registry.
 
-### dockerBuildFile
+The *builder* stage is used by the build and validation stages whereas the *deploy_builder* stage is used for the Docker deployment.
 
-The build and validation stages are executed in context of a Docker container. This container is based on the image defined by this file.
+**Requirements**:
+The multi-stage build consists out of two stages:
 
-**Default**: `Dockerfile.build`
+* builder: Install all the Python development dependencies defined in *requirements_dev.txt*
+* deploy_builder: Install virtualenv, copy the whole code and generate a source distribution package (python setup.py sdist) and install the generated package.
+* production image: This is the image that will contain only the Python module and gets pushed to the Docker registry.
+
+**Example**:
+
+```dockerfile
+ARG PYTHON_BASE=python:3.6.7-alpine3.7
+
+# Create a stage for running build and validation stages (lint, tests)
+FROM tomtom-docker-registry.bintray.io/python/python3-pkg-builder:0.0.22 AS builder
+COPY requirements_dev.txt /
+RUN pip install -r /requirements_dev.txt
+
+# Create the stage for installing a source distribution package
+FROM $PYTHON_BASE AS deploy_builder
+RUN pip install --upgrade virtualenv==16.4.3 && python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+COPY . /code
+WORKDIR /code
+RUN python setup.py sdist && pip install dist/*
+
+# Create the real image with the Python module only.
+FROM $PYTHON_BASE
+COPY --from=deploy_builder /opt/venv /opt/venv
+
+LABEL io.whalebrew.name "my-cli"
+LABEL io.whalebrew.config.working_dir "$PWD"
+
+ENV PATH="/opt/venv/bin:$PATH"
+ENTRYPOINT ["my-cli"]
+```
+
+**Default**: `Dockerfile`
 
 ### dockerBuildArgs
 
@@ -80,35 +115,6 @@ Name of the repository the Docker image will be deployed to.
 For a Python module `foo` and `tomtom` as `dockerRepo` the image will be called `tomtom/foo`.
 
 The tag of the image is based on the version of the Python module version.
-
-### dockerDeployFile
-
-Dockerfile containing directives to build the image with the Python module that will be deployed to the specified Docker registry.
-
-> **Requirement**:
-> Before the *Deploy Docker* stage uses this Dockerfile, the pipeline generates a distribution package (`python setup.py sdist`) within the *dist/*
-> directory. This directory, incl. its content, has to be copied to the builder image which then will be installed by *pip* into a virtualenv within
-> the builder image.
-> As a last step the whole virtualenv directory will be copied to the final Docker image that gets later on deployed to the specified Docker registry.
-
-**Example**:
-
-```dockerfile
-FROM python:3.6.7-alpine3.7 as base
-
-FROM base as builder
-RUN pip install --upgrade virtualenv==16.4.3 && python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-COPY dist /dist
-RUN pip install /dist/*
-
-FROM base
-COPY --from=builder /opt/venv /opt/venv
-
-ENV PATH="/opt/venv/bin:$PATH"
-CMD ["<your-console-scripts"]
-```
 
 ## Snippet
 

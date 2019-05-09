@@ -37,7 +37,10 @@ def call(Map pipelineParams) {
       stage("Create build image") {
         steps {
           script {
-            buildImage = docker.build("python-setup-py-build", "-f ${pipelineParams.dockerBuildFile} ${pipelineParams.dockerBuildArgs} .")
+            buildImageName = "python-setup-py-build"
+            // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
+            // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
+            sh "docker build -t ${buildImageName} -f ${pipelineParams.dockerFilename} ${pipelineParams.dockerBuildArgs} --target builder ."
           }
         }
       } // Create build image
@@ -46,7 +49,7 @@ def call(Map pipelineParams) {
       stage("Bump version Release") {
        agent {
           docker {
-            image buildImage.imageName()
+            image buildImageName
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -68,7 +71,7 @@ def call(Map pipelineParams) {
           stage("Build module") {
             agent {
               docker {
-                image buildImage.imageName()
+                image buildImageName
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -81,7 +84,7 @@ def call(Map pipelineParams) {
           stage("Build docs") {
             agent {
               docker {
-                image buildImage.imageName()
+                image buildImageName
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -106,7 +109,7 @@ def call(Map pipelineParams) {
           stage("Run Linter") {
             agent {
               docker {
-                image buildImage.imageName()
+                image buildImageName
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -130,7 +133,7 @@ def call(Map pipelineParams) {
           stage("Run Tests") {
             agent {
               docker {
-                image buildImage.imageName()
+                image buildImageName
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -151,7 +154,7 @@ def call(Map pipelineParams) {
       stage("Package") {
         agent {
           docker {
-            image buildImage.imageName()
+            image buildImageName
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -173,7 +176,7 @@ def call(Map pipelineParams) {
           stage("Deploy PyPI") {
             agent {
               docker {
-                image buildImage.imageName()
+                image buildImageName
                 args pipelineParams.dockerRunArgs
                 reuseNode true
               }
@@ -215,10 +218,10 @@ def call(Map pipelineParams) {
 
                   // Snapshot images can be overwritten, whereas a release one shouldn't be.
                   if (isSnapshot(moduleVersion) || !imageExists) {
-                    // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we have to
-                    // build and push the image directly via docker commands.
+                    // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
+                    // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
                     try {
-                      sh "docker build -t ${image.imageName()} -f ${pipelineParams.dockerDeployFile} ${pipelineParams.dockerBuildArgs} ."
+                      sh "docker build -t ${image.imageName()} -f ${pipelineParams.dockerFilename} ${pipelineParams.dockerBuildArgs} ."
                       sh "docker push ${image.imageName()}"
                     } finally {
                       sh "docker rmi ${image.imageName()}"
@@ -234,7 +237,7 @@ def call(Map pipelineParams) {
       stage("Bump version Patch") {
         agent {
           docker {
-            image buildImage.imageName()
+            image buildImageName
             args pipelineParams.dockerRunArgs
             reuseNode true
           }
@@ -295,11 +298,11 @@ def initParameterWithBaseValues(Map pipelineParams) {
   // TODO: once all pipelines are updated to use pypiCredentialsId, remove this line:
   pipelineParams["pypiCredentialsId"] = pipelineParams.pypiCredentialsId ?: pipelineParams.pypiCredentials
   // TODO: once all pipelines are updated to use dockerBuildFile, remove all references to dockerFilename.
-  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile.build"
-  pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename
-  pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
+  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
+  // pipelineParams["dockerBuildFile"] = pipelineParams.dockerBuildFile ?: pipelineParams.dockerFilename
+  // pipelineParams["dockerDeployFile"] = pipelineParams.dockerDeployFile ?: "Dockerfile.deploy"
   pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
-  pipelineParams["dockerBuildArgs"] += " --no-cache --network host"
+  pipelineParams["dockerBuildArgs"] += " --network host"
   pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""
   pipelineParams["dockerRunArgs"] += " -v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
   pipelineParams["pypiRepo"] = pipelineParams.pypiRepo ?: "https://test.pypi.org/legacy/"

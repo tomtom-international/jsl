@@ -22,8 +22,8 @@ def call(Map pipelineParams) {
     }
 
     parameters {
-      booleanParam(defaultValue: false, description: "Release the module", name: "doRelease")
-      booleanParam(defaultValue: false, description: "Deploy snapshot Docker image", name: "doDockerSnapshot")
+      booleanParam(defaultValue: false, description: "Release the module (only on master)", name: "doRelease")
+      booleanParam(defaultValue: false, description: "Deploy snapshot Docker image (only on PRs/feature branches)", name: "doDockerSnapshot")
     }
 
     options {
@@ -198,10 +198,15 @@ def call(Map pipelineParams) {
           stage("Deploy Docker") {
             when {
               beforeAgent true
-              expression {
-                // On master builds deploy always if dockerDeploy == true.
-                // On branch/PR builds deploy only on-demand.
-                (BRANCH_NAME ==~ /(master)/ && pipelineParams.dockerDeploy) || params.doDockerSnapshot
+              allOf {
+                // Deploy the docker image when requested by user (on-demand) and
+                triggeredBy cause: "UserIdCause"
+                expression {
+                  // dockerDeploy is enabled in pipeline and
+                  pipelineParams.dockerDeploy &&
+                  // either release was requested or an explict docker snapshot.
+                  (params.doRelease || params.doDockerSnapshot)
+                }
               }
             }
             steps {

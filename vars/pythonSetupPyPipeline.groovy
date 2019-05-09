@@ -205,30 +205,9 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              script {
-                docker.withRegistry(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId) {
-                  def image = docker.image("${pipelineParams.dockerRepo}/${moduleName}:${moduleVersion}")
-                  def imageExists = true
-                  try {
-                    image.pull()
-                  } catch(Exception) {
-                    echo "Image '${image.imageName()}' already exists in registry"
-                    imageExists = false
-                  }
-
-                  // Snapshot images can be overwritten, whereas a release one shouldn't be.
-                  if (isSnapshot(moduleVersion) || !imageExists) {
-                    // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
-                    // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
-                    try {
-                      sh "docker build -t ${image.imageName()} -f ${pipelineParams.dockerFilename} ${pipelineParams.dockerBuildArgs} ."
-                      sh "docker push ${image.imageName()}"
-                    } finally {
-                      sh "docker rmi ${image.imageName()}"
-                    }
-                  }
-                }
-              }
+              deployDockerImage(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId,
+                                pipelineParams.dockerFilename, pipelineParams.dockerBuildArgs,
+                                pipelineParams.dockerRepo, moduleName, moduleVersion)
             }
           } // Deploy Docker
         }
@@ -314,4 +293,29 @@ def throwError(message) {
 
 def isSnapshot(version) {
   return (version.contains("-") || version.contains("dev"))
+}
+
+def deployDockerImage(dockerRegistryUrl, dockerRegistryCredentialsId, dockerFilename, dockerBuildArgs, dockerRepo, moduleName, moduleVersion) {
+  docker.withRegistry(dockerRegistryUrl, dockerRegistryCredentialsId) {
+    def image = docker.image("${dockerRepo}/${moduleName}:${moduleVersion}")
+
+    // Check if a released Docker image already exists and abort the build if it does.
+    if (!isSnapshot(moduleVersion)) {
+      try {
+        image.pull()
+        error("Released Docker image '${image.imageName()}' already exists. Aborting...")
+      } catch(err) {
+        echo "ERROR: ${err}"
+      }
+    }
+
+    // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
+    // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
+    try {
+      sh "docker build -t ${image.imageName()} -f ${dockerFilename} ${dockerBuildArgs} ."
+      sh "docker push ${image.imageName()}"
+    } finally {
+      sh "docker rmi ${image.imageName()}"
+    }
+  }
 }

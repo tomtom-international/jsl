@@ -190,7 +190,7 @@ def call(Map pipelineParams) {
             }
             steps {
               withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentialsId, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
-                sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
+                sh "twine upload --verbose -u \"$USERNAME\" -p \"$PASSWORD\" --repository-url \"${pipelineParams.pypiRepo}\" dist/*"
               }
             }
           } // Deploy PyPI

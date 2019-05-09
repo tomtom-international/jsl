@@ -9,148 +9,319 @@
  */
 
 def call(Map pipelineParams) {
-  def LOG_TAG = "[pythonPipeline]"
 
-  if (!pipelineParams.pypiCredentials) {
-    error("${LOG_TAG} Please provide pipelineParams.pypiCredentials")
-  }
-  if (!pipelineParams.pypiRepo) {
-    error("${LOG_TAG} Please provide pipelineParams.pypiRepo")
-  }
-  if (!pipelineParams.sshAgentUser) {
-    error("${LOG_TAG} Please provide pipelineParams.sshAgentUser")
-  }
-  if (!pipelineParams.dockerFilename) {
-    pipelineParams["dockerFilename"] = "Dockerfile"
-  }
-  if (!pipelineParams.dockerBuildArgs) {
-    pipelineParams["dockerBuildArgs"] = ""
-  }
-  if (!pipelineParams.dockerRunArgs) {
-    pipelineParams["dockerRunArgs"] = "-v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
-  }
+  validateParameter(pipelineParams)
+  initParameterWithBaseValues(pipelineParams)
+  log("Pipeline params: ${pipelineParams}")
 
   pipeline {
     agent {
-      dockerfile {
-        filename pipelineParams.dockerFilename
-        additionalBuildArgs pipelineParams.dockerBuildArgs
-        args pipelineParams.dockerRunArgs
+      node {
+        label "docker"
       }
     }
 
     parameters {
-      booleanParam(defaultValue: false, description: 'Release the module', name: 'doRelease')
+      booleanParam(defaultValue: false, description: "Release the module (only on master)", name: "doRelease")
+      booleanParam(defaultValue: false, description: "Deploy snapshot Docker image (only on PRs/feature branches)", name: "doDockerSnapshot")
     }
 
     options {
       disableConcurrentBuilds()
+      buildDiscarder(logRotator(numToKeepStr: '5'))
     }
 
     stages {
+
+      // We create the build image only once and use it in later stages (reduces job time by ~50%).
+      stage("Create build image") {
+        steps {
+          script {
+            buildImageName = "python-setup-py-build"
+            // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
+            // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
+            sh "docker build -t ${buildImageName} -f ${pipelineParams.dockerFilename} ${pipelineParams.dockerBuildArgs} --target builder ."
+          }
+        }
+      } // Create build image
+
+      // Create a release version (removing the .dev0 from `version`) if we are on master and the doRelease checkbox is ticked.
       stage("Bump version Release") {
+       agent {
+          docker {
+            image buildImageName
+            args pipelineParams.dockerRunArgs
+            reuseNode true
+          }
+        }
         when {
           beforeAgent true
           allOf {
             branch "master"
-            expression {
-              params.doRelease
-            }
+            expression { params.doRelease }
           }
         }
         steps {
           sh "bumpversion release"
         }
-      }
+      } // Bump version Release
 
       stage("Build") {
-        steps {
-          sh "python setup.py build"
-        }
-      }
+        parallel {
+          stage("Build module") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              sh "python setup.py build"
+            }
+          } // Build module
 
-      stage("Execute Pylint") {
-        steps {
-          // Necessary to avoid issues with creating pylint files that track the delta of warnings.
-          withEnv(["HOME=$WORKSPACE"]) {
-            // setuptools-lint does not make a good job in installing all its dependencies.
-            sh "python setup.py install --user"
-            sh "python setup.py lint --lint-output-format parseable"
-          }
+          stage("Build docs") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              // Necessary to be able to locally install packages, which is required for build_sphinx
+              withEnv(["HOME=$WORKSPACE"]) {
+                // * Use `develop` over `install` to avoid creating an egg file in dist/ otherwise
+                //   the Docker deploy build will fail when pip will try to install the egg package.
+                // * We need to call `develop` because otherwise no dependencies of the module itself
+                //   will be installed and the doc generation will fail due to not found imports.
+                sh "python setup.py develop --user"
+                sh "python setup.py build_sphinx"
+              }
+            }
+          } // Build docs
         }
-        post {
-          always {
-            recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
-          }
-        }
-      }
+      } // Build
 
-      stage("Execute Tests") {
-        steps {
-          sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
-        }
-        post {
-          always {
-            junit 'build/test_results.xml'
-            cobertura coberturaReportFile: 'build/coverage.xml'
-          }
-        }
-      }
+      stage("Validate") {
+        parallel {
+          stage("Run Linter") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              // Necessary to avoid issues with creating pylint files that track the delta of warnings.
+              withEnv(["HOME=$WORKSPACE"]) {
+                // setuptools-lint does not do a good job in installing all its dependencies.
+                // use `develop` over `install` to avoid creating an egg file in dist/
+                sh "python setup.py develop --user"
+                sh "python setup.py lint --lint-output-format parseable"
+              }
+            }
+            post {
+              always {
+                recordIssues enabledForFailure: true, tool: pyLint(), healthy: 0
+              }
+            }
+          } // Run Linter
 
-      stage("Build Docs") {
-        steps {
-          // Necessary to be able to locally install packages, which is required for build_sphinx
-          withEnv(["HOME=$WORKSPACE"]) {
-            sh "python setup.py install --user"
-            sh "python setup.py build_sphinx"
-          }
+          stage("Run Tests") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            steps {
+              sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
+            }
+            post {
+              always {
+                junit "build/test_results.xml"
+                cobertura coberturaReportFile: "build/coverage.xml"
+              }
+            }
+          } // Run Tests
         }
-      }
+      } // Validate
 
       stage("Package") {
+        agent {
+          docker {
+            image buildImageName
+            args pipelineParams.dockerRunArgs
+            reuseNode true
+          }
+        }
         steps {
           sh "python setup.py sdist"
           sh "twine check dist/*"
+
+          script {
+            // Gather the module name and version so that it can be used in the Docker deploy stage
+            moduleName = sh(script: "python setup.py --name", returnStdout: true).trim()
+            moduleVersion = sh(script: "python setup.py --version", returnStdout: true).trim()
+          }
         }
-      }
+      } // Package
 
       stage("Deploy") {
-        when {
-          beforeAgent true
-          allOf {
-            branch "master"
-            expression {
-              params.doRelease
+        parallel {
+          stage("Deploy PyPI") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
             }
-          }
-        }
-        steps {
-          withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentials, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
-            sh "twine upload --verbose -u $USERNAME -p $PASSWORD --repository-url ${pipelineParams.pypiRepo} dist/*"
-          }
-        }
-      }
+            when {
+              beforeAgent true
+              allOf {
+                branch "master"
+                expression { params.doRelease }
+              }
+            }
+            steps {
+              withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentialsId, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
+                sh "twine upload --verbose -u \"$USERNAME\" -p \"$PASSWORD\" --repository-url \"${pipelineParams.pypiRepo}\" dist/*"
+              }
+            }
+          } // Deploy PyPI
 
-      stage("Bump Version Patch") {
+          stage("Deploy Docker") {
+            when {
+              beforeAgent true
+              allOf {
+                // Deploy the docker image when requested by user (on-demand) and
+                triggeredBy cause: "UserIdCause"
+                expression {
+                  // dockerDeploy is enabled in pipeline and
+                  pipelineParams.dockerDeploy &&
+                  // either release was requested or an explict docker snapshot.
+                  (params.doRelease || params.doDockerSnapshot)
+                }
+              }
+            }
+            steps {
+              deployDockerImage(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId,
+                                pipelineParams.dockerFilename, pipelineParams.dockerBuildArgs,
+                                pipelineParams.dockerRepo, moduleName, moduleVersion)
+            }
+          } // Deploy Docker
+        }
+      } // Deploy
+
+      stage("Bump version Patch") {
+        agent {
+          docker {
+            image buildImageName
+            args pipelineParams.dockerRunArgs
+            reuseNode true
+          }
+        }
         when {
           beforeAgent true
           allOf {
             branch "master"
-            expression {
-              params.doRelease
-            }
+            expression { params.doRelease }
           }
         }
         steps {
           sshagent([pipelineParams.sshAgentUser]) {
             sh "git checkout master"
-
             sh "bumpversion --no-tag patch"
-
             sh "git push origin master --tags"
           }
         }
+      } // Bump version Patch
+
+    } // stages
+
+    post {
+      cleanup {
+        // Leave the campground cleaner than you found it.
+        deleteDir()
+        // The declarative pipeline produces many images (with hash names) and does not clean them up (and won't
+        // do it: https://issues.jenkins-ci.org/browse/JENKINS-40723).
+        // We try to do our best and delete only dangling images.
+        sh "docker image prune -f"
       }
+    }
+  } // pipeline
+} // call
+
+
+def validateParameter(Map pipelineParams) {
+  if (!pipelineParams.pypiCredentials && !pipelineParams.pypiCredentialsId) {
+    throwError("Please provide a Jenkins credentials id for the specified PyPI repository [pypiCredentials]")
+  }
+  if (!pipelineParams.sshAgentUser) {
+    throwError("Please provide a SSH agent user [sshAgentUser]")
+  }
+
+  if (pipelineParams.dockerDeploy) {
+    if (!pipelineParams.dockerRegistryUrl) {
+      throwError("Please provide a Docker registry URL (eg. https://registry.example.com) [dockerRegistryUrl]")
+    }
+    if (!pipelineParams.dockerRegistryCredentialsId) {
+      throwError("Please provide a Jenkins credentials id for deploying to ${pipelineParams.dockerRegistryUrl} [dockerRegistryCredentialsId]")
+    }
+    if (!pipelineParams.dockerRepo) {
+      throwError("Please provide a Docker repository name (eg. acme). The image name will be based on the Python module name (eg. acme/mymodule) [dockerRepo]")
+    }
+  }
+}
+
+def initParameterWithBaseValues(Map pipelineParams) {
+  pipelineParams["pypiCredentialsId"] = pipelineParams.pypiCredentialsId ?: pipelineParams.pypiCredentials
+  pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
+  pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
+  pipelineParams["dockerBuildArgs"] += " --network host"
+  pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""
+  pipelineParams["dockerRunArgs"] += " -v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
+  pipelineParams["pypiRepo"] = pipelineParams.pypiRepo ?: "https://test.pypi.org/legacy/"
+}
+
+def log(message) {
+  echo("[pythonSetupPyPipeline] ${message}")
+}
+
+def throwError(message) {
+  error("[pythonSetupPyPipeline] ${message}")
+}
+
+def isSnapshot(version) {
+  return (version.contains("-") || version.contains("dev"))
+}
+
+def deployDockerImage(dockerRegistryUrl, dockerRegistryCredentialsId, dockerFilename, dockerBuildArgs, dockerRepo, moduleName, moduleVersion) {
+  docker.withRegistry(dockerRegistryUrl, dockerRegistryCredentialsId) {
+    def image = docker.image("${dockerRepo}/${moduleName}:${moduleVersion}")
+
+    // Check if a released Docker image already exists and abort the build if it does.
+    if (!isSnapshot(moduleVersion)) {
+      try {
+        image.pull()
+        error("Released Docker image '${image.imageName()}' already exists. Aborting...")
+      } catch(err) {
+        echo "ERROR: ${err}"
+      }
+    }
+
+    // Until https://github.com/jenkinsci/docker-workflow-plugin/pull/162 is merged we will use directly docker commands.
+    // Due to this issue one cannot use ARG in aliases (AS) in multi-stage builds.
+    try {
+      sh "docker build -t ${image.imageName()} -f ${dockerFilename} ${dockerBuildArgs} ."
+      sh "docker push ${image.imageName()}"
+    } finally {
+      sh "docker rmi ${image.imageName()}"
     }
   }
 }

@@ -234,13 +234,25 @@ def call(Map pipelineParams) {
           }
         }
         steps {
+          sh "git checkout master"
+          sh "bumpversion --no-tag patch"
+        }
+      } // Bump version Patch
+
+      stage("Git push") {
+        when {
+          beforeAgent true
+          allOf {
+            branch "master"
+            expression { params.doRelease }
+          }
+        }
+        steps {
           sshagent([pipelineParams.sshAgentUser]) {
-            sh "git checkout master"
-            sh "bumpversion --no-tag patch"
             sh "git push origin master --tags"
           }
         }
-      } // Bump version Patch
+      } // Git push
 
     } // stages
 

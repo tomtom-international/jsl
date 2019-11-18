@@ -1,0 +1,20 @@
+# gradlePipeline
+
+## Description
+
+A simple pipeline for Gradle based projects.
+
+### Dependencies
+
+## Parameters
+
+### sshAgentUser
+
+SSH agent user used by the Gradle release plugin during the release (commit of version bump).
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+gradlePipeline sshAgentUser: "ssh_svc_user"
+```

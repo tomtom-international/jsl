@@ -1,0 +1,40 @@
+# pluginRecordAndBackup
+
+## Description
+
+Generates two lists of the currently installed plugins. The first is a list of all the plugins with their currently installed version. The second is a
+list of all installed plugins, with all *unpinned* plugins having the "latest" version, and all pinned plugins (provided by a parameter) having the
+version they are pinned to.
+
+The intention is that automatic backups can be performed (potentially into a git repository) with these list included, and that the first list (with 
+the exact versions) can be used for troubleshooting bad plugin updates, and the second (only pinned at exact versions) can be used for automatic
+deployments/automatic updates.
+
+Additionally, it can optionally backup the plugin archives for pinned versions of plug-ins, to ./plugins/<plugin-name>.<plugin-version>.jpi
+
+### Dependencies
+
+* Java 7
+* script approvals:
+    * field hudson.PluginWrapper archive - optional, only required if you use the plugin archive backup functionality
+    * java.io.File getPath - optional, only required if you use the plugin archive backup functionality
+
+
+## Parameters
+
+### pinnedPluginsStr
+
+String - comma separated list of plugins (short names) and their versions to backup. Should be in the following format: 
+`<plugin1-name>:<plugin1-version>, <plugin2-name>:<plugin2-version>, ...`
+
+### savePinnedPluginArchive (optional)
+
+boolean - Set to `true` to have the plugin archive for pinned plugins backed-up.
+
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+pluginRecordAndBackup pinnedPluginsStr: "plugin1:1.0, plugin2:2.3, plugin3:0.2.3.4", pinnedPluginsStr: true
+```

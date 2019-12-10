@@ -1,0 +1,44 @@
+# updatePlugins
+
+## Description
+
+*Note:* Only use this step if you can risk Jenkins outages, it will not detect failing plugins. We recommend running this after running the
+`pluginRecordAndBackup` step (and save and version the output of that step) so it is easy to see what has been changed.
+
+This step ensures that the plugins installed in Jenkins include the ones passed to it, and keeps them updated.
+It also supports pinning versions of a plugin, and will attempt to downgrade (from the Jenkins backup, and from a local backup) if a pinned version is
+incorrect. If a pinned version is wrong and cannot be restored, it will throw an exception.
+
+Additionally, it can be configured to perform a restart after the plugins have been updated, to allow fully automatic updating.
+
+### Dependencies
+
+* Java 7
+* script approvals:
+    * java.io.File getPath
+
+
+## Parameters
+
+### pluginsStr
+
+String - new-line separated list of plugins (short names) and their versions to backup. Should be in the following format: 
+```
+<plugin1-name>:<plugin1-version>
+<plugin2-name>:<plugin2-version>
+<plugin3-name>:latest
+...
+```
+
+This format matches the files output by the `updatePlugins` step.
+
+### restart (optional)
+
+boolean - Set to `true` to have the Jenkins server automatically restart after updates are installed.
+
+## Snippet
+
+```groovy
+@Library(['github.com/tomtom-international/jsl']) _
+updatePlugins pluginsStr: "plugin1:1.0\n plugin2:2.3\n plugin3:0.2.3.4", restart: true
+```

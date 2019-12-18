@@ -215,6 +215,26 @@ def call(Map pipelineParams) {
                                 pipelineParams.dockerRepo, moduleName, moduleVersion)
             }
           } // Deploy Docker
+
+          // Deploy the html documents to the docs branch, which when using "BitBucket Pages" allows serving the documentation directly
+          stage("Deploy Docs") {
+            when {
+              beforeAgent true
+              allOf {
+                branch "master"
+                expression { params.doRelease }
+              }
+            }
+            steps {
+              sshagent([pipelineParams.sshAgentUser]) {
+                script {
+                  sh "ghp-import -m \"Documentation update to $moduleVersion\" -p -b docs build/sphinx/html"
+                  sh "git tag docs-$moduleVersion docs"
+                  sh "git push origin docs --tags"
+                }
+              }
+            }
+          } // Deploy Docs
         }
       } // Deploy
 

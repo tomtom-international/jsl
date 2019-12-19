@@ -36,7 +36,7 @@ Command used to execute linter against the setup.py project [default: `python se
 
 ### testCommand
 
-Command executed in testing stage [deafult: `python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'`].
+Command executed in testing stage [default: `python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'`].
 
 ### dockerFilename
 

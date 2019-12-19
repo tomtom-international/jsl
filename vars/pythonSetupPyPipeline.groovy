@@ -222,7 +222,11 @@ def call(Map pipelineParams) {
               beforeAgent true
               allOf {
                 branch "master"
-                expression { params.doRelease }
+                expression {
+                  params.doRelease &&
+                  //check if "ghp-import" plugin is installed to deploy docs
+                  isDeployDocsPluginInstalled()
+                }
               }
             }
             steps {
@@ -365,5 +369,14 @@ def deployDockerImage(dockerRegistryUrl, dockerRegistryCredentialsId, dockerFile
     } finally {
       sh "docker rmi ${image.imageName()}"
     }
+  }
+}
+
+def isDeployDocsPluginInstalled() {
+  if (sh(script: "pip list | grep -F ghp-import", returnStatus: true) == 0) {
+    return true
+  } else {
+    log("WARNING:No HTML docs will be deployed due to misalignment of your repo with the cookie-cutter python template. Re-run the template against the repo")
+    return false
   }
 }

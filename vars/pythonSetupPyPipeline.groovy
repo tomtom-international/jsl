@@ -373,10 +373,5 @@ def deployDockerImage(dockerRegistryUrl, dockerRegistryCredentialsId, dockerFile
 }
 
 def isDeployDocsPluginInstalled() {
-  if (sh(script: "pip list | grep -F ghp-import", returnStatus: true) == 0) {
-    return true
-  } else {
-    log("WARNING:No HTML docs will be deployed due to misalignment of your repo with the cookie-cutter python template. Re-run the template against the repo")
-    return false
-  }
+  return sh(script: "pip show ghp-import", returnStatus: true) == 0
 }

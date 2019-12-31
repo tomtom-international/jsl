@@ -9,9 +9,10 @@
  */
 
 def call(Map args, Closure body) {
+  def LOG_TAG = "[withGitEnv]"
 
   if (!args.scmCredentialsId) {
-    error ("${LOG_TAG} Please provide a SCM credentials ID (scmCredentialsId)")
+    error("${LOG_TAG} Please provide a SCM credentials ID (scmCredentialsId)")
   }
 
   if (isSshCheckout()) {
@@ -34,7 +35,7 @@ esac
     }
   }
   else {
-    error("[gitPush] Cannot push changes due to unsupported clone type (only SSH and HTTPS are supported)")
+    error("${LOG_TAG} Cannot push changes due to unsupported clone type (only SSH and HTTPS are supported)")
   }
 }
 

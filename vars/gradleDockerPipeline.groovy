@@ -12,13 +12,13 @@ def call(Map pipelineParams) {
   def LOG_TAG = "[gradleDockerPipeline]"
 
   if (!pipelineParams.dockerRegistryCredentials) {
-    error ("${LOG_TAG} Please provide pipelineParams.dockerRegistryCredentials")
+    error("${LOG_TAG} Please provide pipelineParams.dockerRegistryCredentials")
   }
   if (!pipelineParams.sshAgentUser && !pipelineParams.scmCredentialsId) {
-    throwError("Please provide a SCM checkout credentials id [scmCredentialsId]")
+    error("${LOG_TAG} Please provide a SCM checkout credentials id [scmCredentialsId]")
   }
   if (pipelineParams.sshAgentUser) {
-    log("DEPRECATION WARNING: 'sshAgentUser' is deprecated. Use 'scmCredentialsId' instead")
+    echo("${LOG_TAG} DEPRECATION WARNING: 'sshAgentUser' is deprecated. Use 'scmCredentialsId' instead")
   }
   pipelineParams["scmCredentialsId"] = pipelineParams.scmCredentialsId ?: pipelineParams.sshAgentUser
 

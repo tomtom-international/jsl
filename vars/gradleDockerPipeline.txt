@@ -12,13 +12,18 @@ A simple pipeline for building and releasing Docker images based on an internal 
 
 Jenkins credentials id used to authenticate with a Docker registry.
 
-### sshAgentUser
+### scmCredentialsId
 
-SSH agent user used by the Gradle release plugin during the release (commit of version bump).
+Jenkins credentials id used by the Gradle release plugin during the release (commit of version bump).
+
+### sshAgentUser (DEPRECATED)
+
+**DEPRECATED**: Use `scmCredentialsId` instead.
 
 ## Snippet
 
 ```groovy
-@Library(['github.com/tomtom-international/jsl']) _
-gradleDockerPipeline dockerRegistryCredentials: "artifactory-docker", sshAgentUser: "ssh_svc_user"
+@Library(value="github.com/tomtom-international/jsl@master", changelog=false) _
+
+gradleDockerPipeline dockerRegistryCredentials: "artifactory-docker", scmCredentialsId: "ssh-user-credentials-id"
 ```

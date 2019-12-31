@@ -22,9 +22,13 @@ Python PyPI repository URL, eg. `https://test.pypi.org/legacy/`
 
 Jenkins credentials id used to publish the Python module the specified PyPI repository.
 
-### sshAgentUser
+### scmCredentialsId
 
-SSH agent user used for committing the version bump in release mode (`doRelease` parameter).
+Jenkins credentials id used for committing the version bump in release mode (`doRelease` parameter).
+
+### sshAgentUser (DEPRECATED)
+
+**DEPRECATED**: Use `scmCredentialsId` instead.
 
 ### dockerFilename
 
@@ -130,5 +134,5 @@ pythonSetupPyPipeline \
   dockerDeployFile: "Dockerfile.deploy", \
   pypiRepo: "https://test.pypi.org/legacy/", \
   pypiCredentials: "pypi-credential", \
-  sshAgentUser: "ssh_svc_ci"
+  scmCredentialsId: "ssh-user-credentials-id"
 ```

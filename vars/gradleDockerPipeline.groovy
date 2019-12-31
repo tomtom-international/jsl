@@ -14,9 +14,13 @@ def call(Map pipelineParams) {
   if (!pipelineParams.dockerRegistryCredentials) {
     error ("${LOG_TAG} Please provide pipelineParams.dockerRegistryCredentials")
   }
-  if (!pipelineParams.sshAgentUser) {
-    error ("${LOG_TAG} Please provide pipelineParams.sshAgentUser")
+  if (!pipelineParams.sshAgentUser && !pipelineParams.scmCredentialsId) {
+    throwError("Please provide a SCM checkout credentials id [scmCredentialsId]")
   }
+  if (pipelineParams.sshAgentUser) {
+    log("DEPRECATION WARNING: 'sshAgentUser' is deprecated. Use 'scmCredentialsId' instead")
+  }
+  pipelineParams["scmCredentialsId"] = pipelineParams.scmCredentialsId ?: pipelineParams.sshAgentUser
 
   pipeline {
     agent {
@@ -75,7 +79,7 @@ def call(Map pipelineParams) {
           }
         }
         steps {
-          sshagent([pipelineParams.sshAgentUser]) {
+          withGitEnv([scmCredentialsId: pipelineParams.scmCredentialsId]) {
             sh "./gradlew release -Prelease.useAutomaticVersion=true -Pdocker.registry.user=$DOCKER_REGISTRY_USR -Pdocker.registry.password=$DOCKER_REGISTRY_PSW"
           }
         }

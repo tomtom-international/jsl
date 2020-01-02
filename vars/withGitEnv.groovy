@@ -40,9 +40,13 @@ esac
 }
 
 def isSshCheckout() {
-  return sh(script: "git config --get remote.origin.url | grep -q ssh", returnStatus: true) == 0
+  return _isCloneType("ssh")
 }
 
 def isHttpsCheckout() {
-  return sh(script: "git config --get remote.origin.url | grep -q https", returnStatus: true) == 0
+  return _isCloneType("https")
+}
+
+def _isCloneType(String type) {
+  return sh(script: "git config --get remote.origin.url | grep -q ${type}", returnStatus: true) == 0
 }

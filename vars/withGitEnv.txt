@@ -1,0 +1,42 @@
+# withGitEnv
+
+## Description
+
+A step determining the clone type (SSH or HTTPS supported only) and preparing the environment for
+allowing pushing changes to a remote git repository.
+
+Depending on the clone type (SSH or HTTPS) it uses `sshagent` for SSH or configures the `GIT_ASKPASS`
+environment variable for HTTPS.
+
+### Dependencies
+
+* sshagent plugin
+* credentials plugin
+
+## Parameters
+
+### scmCredentialsId
+
+Jenkins credentials ID used for cloning and pushing changes to a remote.
+
+## Snippet
+
+```groovy
+@Library(value="github.com/tomtom-international/jsl@master", changelog=false) _
+
+[...]
+stage("Git push") {
+  when {
+    beforeAgent true
+    allOf {
+      branch "master"
+      expression { params.doRelease }
+    }
+  }
+  steps {
+    withGitEnv([scmCredentialsId: "user-credentials-id"]) {
+      sh("git push origin master --tags")
+    }
+  }
+}
+```

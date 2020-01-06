@@ -248,8 +248,10 @@ def call(Map pipelineParams) {
           }
         }
         steps {
-          sshagent([pipelineParams.sshAgentUser]) {
-            sh "git push origin master --tags"
+          script {
+            withGitEnv([scmCredentialsId: pipelineParams.scmCredentialsId]) {
+              sh("git push origin master --tags")
+            }
           }
         }
       } // Git push
@@ -272,10 +274,17 @@ def call(Map pipelineParams) {
 
 def validateParameter(Map pipelineParams) {
   if (!pipelineParams.pypiCredentials && !pipelineParams.pypiCredentialsId) {
-    throwError("Please provide a Jenkins credentials id for the specified PyPI repository [pypiCredentials]")
+    throwError("Please provide a Jenkins credentials id for the specified PyPI repository [pypiCredentialsId]")
   }
-  if (!pipelineParams.sshAgentUser) {
-    throwError("Please provide a SSH agent user [sshAgentUser]")
+  if (pipelineParams.pypiCredentials) {
+    log("DEPRECATION WARNING: 'pypiCredentials' is deprecated. Use 'pypiCredentialsId' instead")
+  }
+
+  if (!pipelineParams.sshAgentUser && !pipelineParams.scmCredentialsId) {
+    throwError("Please provide a SCM checkout credentials id [scmCredentialsId]")
+  }
+  if (pipelineParams.sshAgentUser) {
+    log("DEPRECATION WARNING: 'sshAgentUser' is deprecated. Use 'scmCredentialsId' instead")
   }
 
   if (pipelineParams.dockerDeploy) {
@@ -293,6 +302,7 @@ def validateParameter(Map pipelineParams) {
 
 def initParameterWithBaseValues(Map pipelineParams) {
   pipelineParams["pypiCredentialsId"] = pipelineParams.pypiCredentialsId ?: pipelineParams.pypiCredentials
+  pipelineParams["scmCredentialsId"] = pipelineParams.scmCredentialsId ?: pipelineParams.sshAgentUser
   pipelineParams["dockerFilename"] = pipelineParams.dockerFilename ?: "Dockerfile"
   pipelineParams["dockerBuildArgs"] = pipelineParams.dockerBuildArgs ?: ""
   pipelineParams["dockerBuildArgs"] += " --network host"

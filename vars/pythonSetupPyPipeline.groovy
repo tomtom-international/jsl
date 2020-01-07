@@ -226,6 +226,7 @@ def call(Map pipelineParams) {
               }
             }
             when {
+              // beforeAgent is not set to true as docker agent is required to check if ghp-import is installed
               allOf {
                 branch "master"
                 expression {

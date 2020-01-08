@@ -239,7 +239,10 @@ def call(Map pipelineParams) {
             steps {
               withGitEnv([scmCredentialsId: pipelineParams.scmCredentialsId]) {
                 script {
-                  sh "git fetch origin docs:docs"
+                  // create docs branch if it doesn't exist on remote
+                  if (sh(script: "git fetch origin docs:docs", returnStatus: true) != 0) {
+                    sh "git checkout --orphan docs"
+                  }
                   sh "ghp-import -m \"Documentation update to $moduleVersion\" -p -b docs build/sphinx/html"
                   sh "git tag docs-$moduleVersion docs"
                   sh "git push origin docs --tags"

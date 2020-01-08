@@ -215,6 +215,38 @@ def call(Map pipelineParams) {
                                 pipelineParams.dockerRepo, moduleName, moduleVersion)
             }
           } // Deploy Docker
+
+          // Deploy the html documents to the docs branch, which when using "BitBucket Pages" allows serving the documentation directly
+          stage("Deploy Docs") {
+            agent {
+              docker {
+                image buildImageName
+                args pipelineParams.dockerRunArgs
+                reuseNode true
+              }
+            }
+            when {
+              // beforeAgent is not set to true as docker agent is required to check if ghp-import is installed
+              allOf {
+                branch "master"
+                expression {
+                  params.doRelease &&
+                  //check if "ghp-import" plugin is installed to deploy docs
+                  isDeployDocsPluginInstalled()
+                }
+              }
+            }
+            steps {
+              withGitEnv([scmCredentialsId: pipelineParams.scmCredentialsId]) {
+                script {
+                  sh "git fetch origin docs:docs"
+                  sh "ghp-import -m \"Documentation update to $moduleVersion\" -p -b docs build/sphinx/html"
+                  sh "git tag docs-$moduleVersion docs"
+                  sh "git push origin docs --tags"
+                }
+              }
+            }
+          } // Deploy Docs
         }
       } // Deploy
 
@@ -346,4 +378,8 @@ def deployDockerImage(dockerRegistryUrl, dockerRegistryCredentialsId, dockerFile
       sh "docker rmi ${image.imageName()}"
     }
   }
+}
+
+def isDeployDocsPluginInstalled() {
+  return sh(script: "pip show ghp-import", returnStatus: true) == 0
 }

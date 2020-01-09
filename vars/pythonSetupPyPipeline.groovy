@@ -77,7 +77,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "${buildCommand}"
+              sh "${pipelineParams.buildCommand}"
             }
           } // Build module
 
@@ -120,7 +120,7 @@ def call(Map pipelineParams) {
                 // setuptools-lint does not do a good job in installing all its dependencies.
                 // use `develop` over `install` to avoid creating an egg file in dist/
                 sh "python setup.py develop --user"
-                sh "${lintCommand}"
+                sh "${pipelineParams.lintCommand}"
               }
             }
             post {
@@ -139,7 +139,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "${testCommand}"
+              sh "${pipelineParams.testCommand}"
             }
             post {
               always {

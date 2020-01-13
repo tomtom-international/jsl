@@ -30,6 +30,18 @@ Jenkins credentials id used for committing the version bump in release mode (`do
 
 **DEPRECATED**: Use `scmCredentialsId` instead.
 
+### buildCommand
+
+Custom command to execute building setup.py project [default: `python setup.py build`].
+
+### lintCommand
+
+Command used to execute linter against the setup.py project [default: `python setup.py lint --lint-output-format parseable`].
+
+### testCommand
+
+Command executed in testing stage [default: `python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'`].
+
 ### dockerFilename
 
 A [multi-stage Dockerfile](https://docs.docker.com/develop/develop-images/multistage-build/) for producing intermediate build/test and deployment images and

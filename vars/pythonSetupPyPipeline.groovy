@@ -77,7 +77,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "python setup.py build"
+              sh "${pipelineParams.buildCommand}"
             }
           } // Build module
 
@@ -120,7 +120,7 @@ def call(Map pipelineParams) {
                 // setuptools-lint does not do a good job in installing all its dependencies.
                 // use `develop` over `install` to avoid creating an egg file in dist/
                 sh "python setup.py develop --user"
-                sh "python setup.py lint --lint-output-format parseable"
+                sh "${pipelineParams.lintCommand}"
               }
             }
             post {
@@ -139,7 +139,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
+              sh "${pipelineParams.testCommand}"
             }
             post {
               always {
@@ -344,6 +344,9 @@ def initParameterWithBaseValues(Map pipelineParams) {
   pipelineParams["dockerRunArgs"] = pipelineParams.dockerRunArgs ?: ""
   pipelineParams["dockerRunArgs"] += " -v /etc/passwd:/etc/passwd:ro -v /opt/jenkins/.ssh:/opt/jenkins/.ssh:ro --network host"
   pipelineParams["pypiRepo"] = pipelineParams.pypiRepo ?: "https://test.pypi.org/legacy/"
+  pipelineParams["buildCommand"] = pipelineParams.buildCommand ?: "python setup.py build"
+  pipelineParams["lintCommand"] = pipelineParams.lintCommand ?: "python setup.py lint --lint-output-format parseable"
+  pipelineParams["testCommand"] = pipelineParams.testCommand ?: "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
 }
 
 def log(message) {

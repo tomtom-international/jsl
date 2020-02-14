@@ -14,6 +14,12 @@ def call(Map pipelineParams) {
   initParameterWithBaseValues(pipelineParams)
   log("Pipeline params: ${pipelineParams}")
 
+  if (pipelineParams.environment) {
+    pipelineParams["environment"].each{ key, value ->
+      env."${key}" = value
+    }
+  }
+
   pipeline {
     agent {
       node {
@@ -32,6 +38,15 @@ def call(Map pipelineParams) {
     }
 
     stages {
+
+      stage("print env") {
+        steps {
+          withCredentials(pipelineParams.credentials) {
+            sh 'env'
+            sh "echo ${env.BD_PASSWORD}"
+          }
+        }
+      }
 
       // We create the build image only once and use it in later stages (reduces job time by ~50%).
       stage("Create build image") {
@@ -139,7 +154,9 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "${pipelineParams.testCommand}"
+                withCredentials(pipelineParams.credentials) {
+                    sh "${pipelineParams.testCommand}"
+                }
             }
             post {
               always {

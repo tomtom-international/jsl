@@ -15,7 +15,7 @@ def call(Map pipelineParams) {
   log("Pipeline params: ${pipelineParams}")
 
   if (pipelineParams.environment) {
-    pipelineParams["environment"].each{ key, value ->
+    pipelineParams.environment.each{ key, value ->
       env."${key}" = value
     }
   }

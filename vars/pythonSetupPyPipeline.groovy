@@ -14,6 +14,12 @@ def call(Map pipelineParams) {
   initParameterWithBaseValues(pipelineParams)
   log("Pipeline params: ${pipelineParams}")
 
+  if (pipelineParams.environment) {
+    pipelineParams.environment.each{ key, value ->
+      env."${key}" = value
+    }
+  }
+
   pipeline {
     agent {
       node {
@@ -77,7 +83,9 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "${pipelineParams.buildCommand}"
+              withCredentials(pipelineParams.credentials) {
+                sh "${pipelineParams.buildCommand}"
+              }
             }
           } // Build module
 
@@ -139,7 +147,9 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              sh "${pipelineParams.testCommand}"
+                withCredentials(pipelineParams.credentials) {
+                    sh "${pipelineParams.testCommand}"
+                }
             }
             post {
               always {
@@ -189,7 +199,7 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentialsId, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")]) {
+              withCredentials([usernamePassword(credentialsId: pipelineParams.pypiCredentialsId, usernameVariable: "USERNAME", passwordVariable: "PASSWORD")].addAll(pipelineParams.credentials)) {
                 sh "twine upload --verbose -u \"$USERNAME\" -p \"$PASSWORD\" --repository-url \"${pipelineParams.pypiRepo}\" dist/*"
               }
             }
@@ -210,9 +220,11 @@ def call(Map pipelineParams) {
               }
             }
             steps {
-              deployDockerImage(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId,
-                                pipelineParams.dockerFilename, pipelineParams.dockerBuildArgs,
-                                pipelineParams.dockerRepo, moduleName, moduleVersion)
+              withCredentials(pipelineParams.credentials) {
+                deployDockerImage(pipelineParams.dockerRegistryUrl, pipelineParams.dockerRegistryCredentialsId,
+                                  pipelineParams.dockerFilename, pipelineParams.dockerBuildArgs,
+                                  pipelineParams.dockerRepo, moduleName, moduleVersion)
+              }
             }
           } // Deploy Docker
 
@@ -347,6 +359,8 @@ def initParameterWithBaseValues(Map pipelineParams) {
   pipelineParams["buildCommand"] = pipelineParams.buildCommand ?: "python setup.py build"
   pipelineParams["lintCommand"] = pipelineParams.lintCommand ?: "python setup.py lint --lint-output-format parseable"
   pipelineParams["testCommand"] = pipelineParams.testCommand ?: "python setup.py test --addopts '--cov-report xml:build/coverage.xml --cov-report term --cov-branch --junitxml=build/test_results.xml'"
+  pipelineParams["credentials"] = pipelineParams.credentials ?: []
+  pipelineParams["environment"] = pipelineParams.environment ?: []
 }
 
 def log(message) {

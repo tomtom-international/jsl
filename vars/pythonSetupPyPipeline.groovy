@@ -255,9 +255,8 @@ def call(Map pipelineParams) {
                   if (sh(script: "git fetch origin docs:docs", returnStatus: true) != 0) {
                     sh "git checkout --orphan docs"
                   }
-                  sh "ghp-import -m \"Documentation update to $moduleVersion\" -p -b docs build/sphinx/html"
+                  sh "ghp-import -m \"Documentation update to $moduleVersion\" -b docs build/sphinx/html"
                   sh "git tag docs-$moduleVersion docs"
-                  sh "git push origin docs docs-$moduleVersion"
                 }
               }
             }
@@ -298,6 +297,10 @@ def call(Map pipelineParams) {
           script {
             withGitEnv([scmCredentialsId: pipelineParams.scmCredentialsId]) {
               sh("git push origin master --tags")
+
+              if (sh(script: "git tag -l \"docs-$moduleVersion\"", returnStdout: true) != "") {
+                sh(script: "git push origin docs docs-$moduleVersion")
+              }
             }
           }
         }
